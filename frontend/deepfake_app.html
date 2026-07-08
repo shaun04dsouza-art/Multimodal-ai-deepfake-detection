@@ -1,0 +1,322 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Deepfake Detection Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    body {
+      background-color: #0d1117;
+      color: #c9d1d9;
+      font-family: 'Inter', sans-serif;
+    }
+    .container-card {
+      background-color: #161b22;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.5);
+    }
+    .drop-zone {
+      border: 2px dashed #30363d;
+      background-color: #010409;
+      transition: 0.2s;
+    }
+    .drop-zone-hover {
+      border-color: #58a6ff;
+      background-color: #1c2128;
+    }
+  </style>
+</head>
+
+<body class="p-6 flex justify-center">
+  <div class="w-full max-w-4xl">
+    <h1 class="text-3xl font-bold text-center mb-6">Deepfake Detection Dashboard</h1>
+
+    <!-- Status Bar -->
+    <div id="status-bar" class="text-center py-2 rounded bg-gray-800 text-gray-300 mb-5">
+      Checking backend connection...
+    </div>
+
+    <div class="container-card p-6 rounded-xl">
+      
+      <!-- Tabs -->
+      <div class="flex border-b border-gray-700 mb-6">
+        <button id="tab-image" class="py-2 px-4 border-b-2 border-red-500 text-red-400">🖼 Image</button>
+        <button id="tab-video" class="py-2 px-4 text-gray-400 hover:text-gray-200">🎥 Video</button>
+        <button id="tab-text" class="py-2 px-4 text-gray-400 hover:text-gray-200">📝 Text</button>
+      </div>
+
+      <div id="content-area"></div>
+
+      <!-- Loading -->
+      <div id="loading" class="hidden text-center mt-6">
+        <div class="animate-pulse text-red-500 font-bold">Analyzing...</div>
+        <div class="w-full bg-gray-700 h-2 rounded mt-2">
+          <div class="bg-red-600 h-2 rounded" style="width: 50%"></div>
+        </div>
+      </div>
+
+      <!-- Results -->
+      <div id="result" class="mt-6"></div>
+
+    </div>
+  </div>
+
+<script>
+const API = "http://127.0.0.1:8000";
+let currentTab = "image";
+
+// DOM
+const statusBar = document.getElementById("status-bar");
+const contentArea = document.getElementById("content-area");
+const resultBox = document.getElementById("result");
+const loading = document.getElementById("loading");
+
+// -------------------------------
+//   TAB SWITCH HANDLING
+// -------------------------------
+document.getElementById("tab-image").addEventListener("click", () => switchTab("image"));
+document.getElementById("tab-video").addEventListener("click", () => switchTab("video"));
+document.getElementById("tab-text").addEventListener("click", () => switchTab("text"));
+
+function switchTab(tab) {
+  currentTab = tab;
+
+  document.querySelectorAll("button[id^='tab-']").forEach(btn => {
+    btn.classList.remove("text-red-400", "border-red-500");
+    btn.classList.add("text-gray-400");
+  });
+
+  document.getElementById(`tab-${tab}`).classList.add("text-red-400", "border-red-500");
+  
+  renderUI();
+}
+
+// -------------------------------
+//   RENDER UI PER TAB
+// -------------------------------
+function renderUI() {
+  resultBox.innerHTML = "";
+  loading.classList.add("hidden");
+
+  if (currentTab === "image") {
+    contentArea.innerHTML = `
+      <div class="drop-zone p-10 text-center rounded-lg" id="drop-image">
+        <p class="text-gray-400">Drop Image or Browse</p>
+        <input type="file" id="imageFile" accept="image/*" class="hidden">
+        <button id="browseImage" class="mt-4 px-4 py-2 bg-gray-700 rounded">Browse</button>
+      </div>
+      <button id="analyzeImage" class="w-full mt-6 bg-red-600 py-3 rounded font-bold">Analyze Image</button>
+    `;
+    attachImageListeners();
+  }
+
+  else if (currentTab === "video") {
+    contentArea.innerHTML = `
+      <div class="drop-zone p-10 text-center rounded-lg" id="drop-video">
+        <p class="text-gray-400">Drop Video or Browse</p>
+        <input type="file" id="videoFile" accept="video/*" class="hidden">
+        <button id="browseVideo" class="mt-4 px-4 py-2 bg-gray-700 rounded">Browse</button>
+      </div>
+      <button id="analyzeVideo" class="w-full mt-6 bg-red-600 py-3 rounded font-bold">Analyze Video</button>
+    `;
+    attachVideoListeners();
+  }
+
+  else {
+    contentArea.innerHTML = `
+      <textarea id="textInput" placeholder="Paste text..." 
+        class="w-full bg-gray-800 p-4 rounded h-40 mb-4"></textarea>
+      <input type="file" id="textFile" accept=".txt" class="w-full mb-4 text-gray-400">
+      <button id="analyzeText" class="w-full mt-4 bg-red-600 py-3 rounded font-bold">Analyze Text</button>
+    `;
+    attachTextListeners();
+  }
+}
+
+// -------------------------------
+//    BACKEND CHECK
+// -------------------------------
+async function checkServer() {
+  try {
+    const res = await fetch(`${API}/health`);
+    const data = await res.json();
+
+    statusBar.textContent = `✅ Connected — Device: ${data.device}`;
+    statusBar.className = "text-center py-2 rounded bg-green-900/30 text-green-300";
+
+  } catch (err) {
+    statusBar.textContent = "❌ Backend Not Reachable";
+    statusBar.className = "text-center py-2 rounded bg-red-900/30 text-red-300";
+  }
+}
+
+// -------------------------------
+//  ATTACH INPUT LISTENERS
+// -------------------------------
+function attachImageListeners() {
+  const drop = document.getElementById("drop-image");
+  const browse = document.getElementById("browseImage");
+  const input = document.getElementById("imageFile");
+  const btn = document.getElementById("analyzeImage");
+
+  browse.onclick = () => input.click();
+  
+  drop.ondragover = e => { e.preventDefault(); drop.classList.add("drop-zone-hover"); };
+  drop.ondragleave = () => drop.classList.remove("drop-zone-hover");
+  drop.ondrop = e => {
+    e.preventDefault();
+    drop.classList.remove("drop-zone-hover");
+    input.files = e.dataTransfer.files;
+  };
+
+  btn.onclick = () => analyzeFile("image", input.files[0]);
+}
+
+function attachVideoListeners() {
+  const drop = document.getElementById("drop-video");
+  const browse = document.getElementById("browseVideo");
+  const input = document.getElementById("videoFile");
+  const btn = document.getElementById("analyzeVideo");
+
+  browse.onclick = () => input.click();
+  
+  drop.ondragover = e => { e.preventDefault(); drop.classList.add("drop-zone-hover"); };
+  drop.ondragleave = () => drop.classList.remove("drop-zone-hover");
+  drop.ondrop = e => {
+    e.preventDefault();
+    drop.classList.remove("drop-zone-hover");
+    input.files = e.dataTransfer.files;
+  };
+
+  btn.onclick = () => analyzeFile("video", input.files[0]);
+}
+
+function attachTextListeners() {
+  document.getElementById("analyzeText").onclick = analyzeText;
+}
+
+// -------------------------------
+//     ANALYZE IMAGE/VIDEO
+// -------------------------------
+async function analyzeFile(type, file) {
+  if (!file) return showError("Please select a file.");
+
+  const endpoint = type === "image" ? "/predict/image" : "/predict/video";
+
+  const form = new FormData();
+  form.append("file", file);
+
+  loading.classList.remove("hidden");
+  resultBox.innerHTML = "";
+
+  try {
+    const res = await fetch(API + endpoint, { method: "POST", body: form });
+
+    // ---- FIX: HANDLE NON-JSON ERRORS ----
+    let data;
+    try { data = await res.json(); }
+    catch { return showError("Invalid response from backend"); }
+
+    if (!res.ok) {
+      return showError(data.detail || "Backend error");
+    }
+
+    loading.classList.add("hidden");
+    showResult(data);
+
+  } catch (err) {
+    loading.classList.add("hidden");
+    showError(err.message);
+  }
+}
+
+// -------------------------------
+//     ANALYZE TEXT
+// -------------------------------
+async function analyzeText() {
+  let text = document.getElementById("textInput").value.trim();
+  const file = document.getElementById("textFile").files[0];
+
+  if (!text && !file) return showError("Enter or upload text first.");
+
+  const form = new FormData();
+  if (file) {
+    form.append("file", file);
+  } else {
+    form.append("file", new Blob([text], { type: "text/plain" }), "input.txt");
+  }
+
+  loading.classList.remove("hidden");
+  resultBox.innerHTML = "";
+
+  try {
+    const res = await fetch(API + "/predict/text", { method: "POST", body: form });
+
+    // ---- FIX FOR INVALID JSON ----
+    let data;
+    try { data = await res.json(); }
+    catch { return showError("Invalid response from backend"); }
+
+    if (!res.ok) {
+      return showError(data.detail || "Backend error");
+    }
+
+    loading.classList.add("hidden");
+    showResult(data);
+
+  } catch (err) {
+    loading.classList.add("hidden");
+    showError(err.message);
+  }
+}
+
+// ----------------------------------------------------------
+//  FIXED RESULT FUNCTION
+// ----------------------------------------------------------
+function showResult(data) {
+  if (!data || !data.prediction || !data.confidence) {
+    showError("Invalid response from backend");
+    return;
+  }
+
+  const color = data.prediction === "real" ? "text-green-400" : "text-red-400";
+  const bg = data.prediction === "real" ? "bg-green-900/30" : "bg-red-900/30";
+
+  resultBox.innerHTML = `
+    <div class="p-4 border border-gray-700 rounded ${bg} text-center">
+      <h2 class="text-2xl font-bold ${color} uppercase">${data.prediction}</h2>
+      <p class="text-gray-300 mt-2">Confidence: ${data.confidence}</p>
+
+      ${
+        data.fake_probability
+        ? `<p class="text-gray-400 text-sm mt-1">
+              Fake: ${data.fake_probability} | Real: ${data.real_probability}
+           </p>`
+        : ""
+      }
+    </div>
+  `;
+}
+
+function showError(msg) {
+  resultBox.innerHTML = `
+    <div class="p-4 border border-gray-700 rounded bg-red-900/30 text-center text-red-400">
+      ${msg}
+    </div>
+  `;
+}
+
+// -------------------------------
+// INIT
+// -------------------------------
+document.addEventListener("DOMContentLoaded", () => {
+  checkServer();
+  renderUI();
+  setInterval(checkServer, 30000);
+});
+</script>
+
+</body>
+</html>
