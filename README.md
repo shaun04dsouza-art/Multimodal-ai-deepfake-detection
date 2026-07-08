@@ -57,4 +57,4 @@ On Windows, `START_SYSTEM.bat` automates all of this.
 ## Author
 
 **Shaun Dsouza**
-[LinkedIn](#) | [GitHub](#)
+[LinkedIn](https://www.linkedin.com/in/shaun-dsouza-3680a92a2/) | [GitHub](https://github.com/shaun04dsouza-art)
